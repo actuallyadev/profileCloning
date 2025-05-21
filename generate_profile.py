@@ -1,0 +1,1 @@
+OS = ['Windows', 'Linux', 'Mac']
