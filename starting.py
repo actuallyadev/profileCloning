@@ -132,10 +132,11 @@ def set_directory_path_and_name():
     ls = os.listdir(profile_directory)
     if ls:
         # Check the contents of the directory and find the farthest profile
-        next_folder_name = get_next_folder_name(ls)
-        return profile_directory, next_folder
+        next_folder_name = get_next_folder_name(profile_directory, ls)
+        return profile_directory, next_folder_name
     else:
-        return profile_directory, "profile_A"
+        print("CHECKK: ", profile_directory)
+        return profile_directory, "profile_1"
     
 @do_not_redeem_it
 def get_directory_path_and_name():
@@ -154,40 +155,48 @@ def get_directory_path_and_name():
         pass
     return directory_path, directory_name
 
-def get_next_folder_name(ls: list):
+def get_next_folder_name(full_path: str, ls: list):
     """
         Get the last folder name
     """
-    last_folder_name = get_last_folder_name(ls)
+    last_folder_name = get_last_folder_name(full_path, ls)
     # We assume the last folder name will be something like profile_1056
     last_folder_name_letter = last_folder_name.split("_")[1]
-    return "profile_" + str(int(last_folder_name_letter + 1))
+    return "profile_" + str(int(last_folder_name_letter) + 1)
 
-def get_last_folder_name(ls: list):
+def get_last_folder_name(full_path: str, ls: list):
     """
         Sort the directory contents list and return 
-        the newest folder
+        the subdirectory name of the highest profile,
+        for example -> [profile_1, profile_2]:
+        return profile_2
     """
-    smallest, smallest_file = float(os.path.getctime(ls[0])), ls[0]
+    largest_ctime, newest_file = 0, ls[0]
     for file in ls:
-        file_creation_time = float(os.path.getctime(file))
-        if file_creation_time < smallest:
-            smallest = file_creation_time
-            smallest_file = file
-    return smallest_file
+        if 'profile_' in file:
+            file_path = os.path.join(full_path, file)
+            file_creation_time = float(os.path.getctime(file_path))
+            if file_creation_time > largest_ctime:
+                largest_ctime = file_creation_time
+                newest_file = file
+    return newest_file
 
 def __main__():
     """
         Called when user executes the tool
     """
-    directory_path, directory_name = set_directory_path_and_name()
-    print("DIRECTORY PATH: ", directory_path)
-    print("DIRECTORY NAME: ", directory_name)
-    chrome_binary_path = get_chrome_binary_path()
-    print("Chrome binary path: ", chrome_binary_path)
-    kill_chrome_processes()
-    create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
-    time.sleep(10)
-    kill_chrome_processes()
+    for i in range(0,5):
+        directory_path, directory_name = set_directory_path_and_name()
+        print("DIRECTORY PATH: ", directory_path)
+        print("DIRECTORY NAME: ", directory_name)
+        chrome_binary_path = get_chrome_binary_path()
+        print("Chrome binary path: ", chrome_binary_path)
+        kill_chrome_processes()
+        create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
+        time.sleep(2)
+        try:
+            kill_chrome_processes()
+        except:
+            pass
 
 __main__()
