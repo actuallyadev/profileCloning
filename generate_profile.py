@@ -1,1 +1,0 @@
-OS = ['Windows', 'Linux', 'Mac']
