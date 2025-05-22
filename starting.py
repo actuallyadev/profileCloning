@@ -10,10 +10,12 @@
     We will start simple, using Chrome and Windows 11
 """
 
+import time
 import psutil
 from decorators import do_not_redeem_it
 import os, signal, platform
 from pathlib import Path
+from subprocess import Popen
 
 def kill_chrome_processes():
     """
@@ -41,6 +43,8 @@ def create_profile_skeleton(directory: str, profile_directory_name: str, chrome_
         "--disable-extensions"
     ]
 
+    Popen(cmd)
+
 def get_chrome_binary_path():
     """
         Find the chrome binary path by searching through
@@ -59,16 +63,18 @@ def search_for_chrome_binary():
         on the OS for the chrome binary path,
         if not found return None
     """
-    current_os = platform.model() # Returns OS -> Windows, Linux, MacOs without version (Ubuntu, Windows 11, etc)
+    current_os = platform.system() # Returns OS -> Windows, Linux, MacOs without version (Ubuntu, Windows 11, etc)
+    print("CURRENT OS", current_os)
     potential_paths = []
     if current_os == 'Windows':
+        # expandvars just replaces the enviroment variable names with the actual values
         potential_paths = [
-            os.environ.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"), # expandvars just replaces the enviroment variable names with the actual values
-            os.environ.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-            os.environ.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
         ]
     
-    elif current_os == 'Linux':
+    elif current_os == 'Darwin':
         potential_paths = [
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "/Applications/Chromium.app/Contents/MacOS/Chromium",
@@ -86,13 +92,11 @@ def search_for_chrome_binary():
             "/snap/bin/chromium",
         ]
 
-    for path in potential_paths:
-        print("PATH: ", path)
-        if os.path.exists():
-            print("PATH FOUND: ", path)
-            return path
+    for potential_path in potential_paths:
+        if os.path.exists(potential_path):
+            print("PATH FOUND: ", potential_path)
+            return potential_path
     
-    print("Could not find path")
     raise Exception("Could not automatically find the chrome binary")
 
 def ask_user_for_chrome_binary():
@@ -103,20 +107,20 @@ def ask_user_for_chrome_binary():
         by searching in common locations.
     """
     try:
-        binary_path = str(input("Could not find the binary path, specify it please"))
+        binary_path = str(input("Could not find the binary path, specify it please\n"))
         if not os.path.exists(binary_path):
-            raise Exception("Binary path is not valid, run the tool and enter a different one")
+            raise Exception()
         return binary_path
     except Exception:
-        raise SystemExit # Same as calling sys.exit() but this is more stylish
+        raise SystemExit("Binary path is not valid, run the tool and enter a different one") # Same as calling sys.exit() but this is more stylish
         
 def set_directory_path_and_name():
     """
         Check if directory to store profiles has already been
         created and its contents. If not, create it.
         The name of the profile should
-        be the next of the last one created -> Last created: Profile_A
-        -> Next: Profile_B
+        be the next of the last one created -> Last created: Profile_1
+        -> Next: Profile_2
     """
     # Create profile folder if it does not exist
     try:
@@ -128,7 +132,7 @@ def set_directory_path_and_name():
     ls = os.listdir(profile_directory)
     if ls:
         # Check the contents of the directory and find the farthest profile
-        next_folder = get_next_folder(ls)
+        next_folder_name = get_next_folder_name(ls)
         return profile_directory, next_folder
     else:
         return profile_directory, "profile_A"
@@ -177,9 +181,13 @@ def __main__():
         Called when user executes the tool
     """
     directory_path, directory_name = set_directory_path_and_name()
+    print("DIRECTORY PATH: ", directory_path)
+    print("DIRECTORY NAME: ", directory_name)
     chrome_binary_path = get_chrome_binary_path()
     print("Chrome binary path: ", chrome_binary_path)
     kill_chrome_processes()
-    # create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
+    create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
+    time.sleep(10)
+    kill_chrome_processes()
 
 __main__()
