@@ -16,6 +16,7 @@
 import time
 import psutil
 from decorators import do_not_redeem_it
+import shutil
 import os, signal, platform
 from pathlib import Path
 from subprocess import Popen, PIPE
@@ -235,13 +236,11 @@ def edit_local_state(directory_path, directory_name):
 
 
 
-def create_first_profile():
+def create_first_profile(directory_path, directory_name, chrome_binary_path):
     """
         Logic to create the first environment
         to later be modified
     """
-    chrome_binary_path = get_chrome_binary_path()
-    directory_path, directory_name = set_directory_path_and_name()
     try:
         kill_chrome_processes()
     except:
@@ -254,10 +253,15 @@ def create_first_profile():
         pass
     edit_local_state(directory_path, directory_name)
 
-def clone_profile(number_of_clones: int):
+def clone_profile(directory_path, directory_name, number_of_clones):
     """
         Clone the profile X times
     """
+    directory_to_copy = os.path.join(directory_path, directory_name)
+    for i in range(2, number_of_clones + 2):
+        directory_copy = os.path.join(directory_path, f'environment_{i}')
+        new_path = shutil.copytree(directory_to_copy, directory_copy)
+        print(new_path)
 
 def __main__():
     """
@@ -265,9 +269,11 @@ def __main__():
         and modify the json values of Local State's 
         client_id, then copy X times.
     """
+    chrome_binary_path = get_chrome_binary_path()
+    directory_path, directory_name = set_directory_path_and_name()
     number_of_clones = get_user_input()
-    create_first_profile()
-    clone_profile(number_of_clones - 1)
+    create_first_profile(directory_path, directory_name, chrome_binary_path)
+    clone_profile(directory_path, directory_name, number_of_clones - 1)
 
 
 if __name__ == "__main__":
