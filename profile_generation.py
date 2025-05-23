@@ -37,7 +37,6 @@ def create_profile_skeleton(directory: str, environment_directory_name: str, chr
         set.
     """
     profile_directory_name = "profile_" + environment_directory_name.split("_")[1]
-    print("PROFILE: ", profile_directory_name)
     cmd = [
         chrome_binary_path,
         f"--user-data-dir={directory + f'\{environment_directory_name}'}",
@@ -210,4 +209,11 @@ def __main__():
         directory_path, directory_name = set_directory_path_and_name()
         print(directory_name, directory_path)
         create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
-__main__()
+        time.sleep(2)
+    try:
+        kill_chrome_processes()
+    except:
+        pass
+
+if __name__ == "__main__":
+    __main__()
