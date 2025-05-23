@@ -18,7 +18,7 @@ import psutil
 from decorators import do_not_redeem_it
 import os, signal, platform
 from pathlib import Path
-from subprocess import Popen
+from subprocess import Popen, PIPE
 
 def kill_chrome_processes():
     """
@@ -30,15 +30,17 @@ def kill_chrome_processes():
         if 'chrome' in process.name():
             process.kill()
 
-def create_profile_skeleton(directory: str, profile_directory_name: str, chrome_binary_path):
+def create_profile_skeleton(directory: str, environment_directory_name: str, chrome_binary_path):
     """
-        Create profile skeleton by executing chrome binary
+        Create chrome environment by executing chrome binary
         with no first run, no sync and no extensions flags
         set.
     """
+    profile_directory_name = "profile_" + environment_directory_name.split("_")[1]
+    print("PROFILE: ", profile_directory_name)
     cmd = [
         chrome_binary_path,
-        f"--user-data-dir={directory}",
+        f"--user-data-dir={directory + f'\{environment_directory_name}'}",
         f"--profile-directory={profile_directory_name}",
         "--no-first-run",
         "--disable-sync",
@@ -46,7 +48,7 @@ def create_profile_skeleton(directory: str, profile_directory_name: str, chrome_
         "--disable-extensions"
     ]
 
-    Popen(cmd)
+    Popen(cmd, stderr=PIPE, stdout=PIPE)
 
 def get_chrome_binary_path():
     """
@@ -119,27 +121,27 @@ def ask_user_for_chrome_binary():
         
 def set_directory_path_and_name():
     """
-        Check if directory to store profiles has already been
-        created and its contents. If not, create it.
+        Check if directory to store chrome environments has
+        already been created. If not, create it.
         The name of the profile should
-        be the next of the last one created -> Last created: Profile_1
-        -> Next: Profile_2
+        be the next of the last one created -> Last created: Environment_1
+        -> Next: Environment_2
     """
     # Create profile folder if it does not exist
     try:
-        os.mkdir("ProfileFolder")
+        os.mkdir("EnvironmentDirectory")
     except FileExistsError:
         pass
-    profile_directory = os.path.join(os.getcwd(), "ProfileFolder")
+    environment_directory = os.path.join(os.getcwd(), "EnvironmentDirectory")
     # Get contents of directory
-    ls = os.listdir(profile_directory)
+    ls = os.listdir(environment_directory)
     if ls:
         # Check the contents of the directory and find the farthest profile
         next_folder_name = get_next_folder_name(ls)
-        return profile_directory, next_folder_name
+        return environment_directory, next_folder_name
     else:
-        print("CHECKK: ", profile_directory)
-        return profile_directory, "profile_1"
+        print("CHECKK: ", environment_directory)
+        return environment_directory, "environment_1"
     
 @do_not_redeem_it
 def get_directory_path_and_name():
@@ -165,32 +167,47 @@ def get_next_folder_name(ls: list):
     last_folder_name = get_last_folder_name(ls)
     # We assume the last folder name will be something like profile_1056
     last_folder_name_letter = last_folder_name.split("_")[1]
-    return "profile_" + str(int(last_folder_name_letter) + 1)
+    return "environment_" + str(int(last_folder_name_letter) + 1)
 
 def get_last_folder_name(ls: list):
     """
         Sort the directory contents list and return 
         the subdirectory name of the highest profile,
-        for example -> [profile_1, profile_2]:
-        return profile_2
+        for example -> [environment_1, environment_2]:
+        return environment_2
     """
     largest_number, newest_file = 0, ls[0]
     for current_file in ls:
-        if 'profile_' in current_file:
-            current_number = int(current_file.split('_')[1])
-            if current_number > largest_number:
-                largest_number = current_number
-                newest_file = current_file
+        current_number = int(current_file.split('_')[1])
+        if current_number > largest_number:
+            largest_number = current_number
+            newest_file = current_file
     return newest_file
+
+def get_user_input():
+    """
+        Helper function to sanitize input
+        and handle edge cases better
+    """
+    try:
+        return int(input("What is the number of profiles you want to generate?\n"))
+    except:
+        raise SystemExit("INVALID INPUT!?!?!?!?!")
 
 def __main__():
     """
         Kill chrome processes, create profile skeleton
-        and modify the json values of local_state,
-        then copy X times.
+        and modify the json values of Local State's 
+        client_id, then copy X times.
     """
-    directory_path, directory_name = set_directory_path_and_name()
+    number_of_environments = get_user_input()
     chrome_binary_path = get_chrome_binary_path()
-    create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
-
+    for i in range(0, number_of_environments):
+        try:
+            kill_chrome_processes()
+        except:
+            pass
+        directory_path, directory_name = set_directory_path_and_name()
+        print(directory_name, directory_path)
+        create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
 __main__()
