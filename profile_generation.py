@@ -19,6 +19,10 @@ from decorators import do_not_redeem_it
 import os, signal, platform
 from pathlib import Path
 from subprocess import Popen, PIPE
+import json
+
+NULLABLE_FIELDS = ['client_id', 'client_id2', 'client_id_timestamp']
+FALSABLE_FIELDS = ['allowed', 'reporting_enabled']
 
 def kill_chrome_processes():
     """
@@ -36,11 +40,10 @@ def create_profile_skeleton(directory: str, environment_directory_name: str, chr
         with no first run, no sync and no extensions flags
         set.
     """
-    profile_directory_name = "profile_" + environment_directory_name.split("_")[1]
     cmd = [
         chrome_binary_path,
         f"--user-data-dir={directory + f'\{environment_directory_name}'}",
-        f"--profile-directory={profile_directory_name}",
+        f"--profile-directory=myprofile",
         "--no-first-run",
         "--disable-sync",
         "--disable-sync-preferences",
@@ -193,27 +196,79 @@ def get_user_input():
     except:
         raise SystemExit("INVALID INPUT!?!?!?!?!")
 
+def edit_local_state(directory_path, directory_name):
+    """
+        Edit Local State's fields that matter
+        for linkability:
+        
+        "user_experience_metrics": {
+        "client_id":      "",   // blank → Chrome writes new GUID
+        "client_id2":     "",
+        "session_id":     0,    // reset
+        "reporting_enabled": false   // privacy hardening (same for all clones)
+        },
+        "os_crypt": {
+        "encrypted_key":  ""    // blank → Chrome wraps a new AES cookie key
+        },
+        "signin": {
+        "allowed": false        // same for all clones, stops GAIA prompts
+        },
+        "sync_disabled": true      // same, keeps Chrome Sync off
+    """
+    local_state_file = os.path.join(directory_path, directory_name, "Local State")
+    print("LOCAL STATE location: ", local_state_file)
+    num = sum(1 for line in open(local_state_file))
+    print(num)
+    with open(local_state_file) as file:
+        data = json.load(file)
+    data['user_experience_metrics']['session_id'] = 0
+    data['user_experience_metrics']['reporting_enabled'] = "false"
+    data['os_crypt']["encrypted_key"] = ""
+    data['signin']["allowed"] = "false"
+    data['sync_disabled'] = "true"
+    for field in NULLABLE_FIELDS:
+        data["user_experience_metrics"][field] = ""
+    with open(local_state_file, 'w', encoding='utf-8') as file:
+        json.dump(data, file, indent=2)
+    num = sum(1 for line in open(local_state_file))
+    print(num)
+
+
+
+def create_first_profile():
+    """
+        Logic to create the first environment
+        to later be modified
+    """
+    chrome_binary_path = get_chrome_binary_path()
+    directory_path, directory_name = set_directory_path_and_name()
+    try:
+        kill_chrome_processes()
+    except:
+        pass
+    create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
+    time.sleep(5)
+    try:
+        kill_chrome_processes()
+    except:
+        pass
+    edit_local_state(directory_path, directory_name)
+
+def clone_profile(number_of_clones: int):
+    """
+        Clone the profile X times
+    """
+
 def __main__():
     """
         Kill chrome processes, create profile skeleton
         and modify the json values of Local State's 
         client_id, then copy X times.
     """
-    number_of_environments = get_user_input()
-    chrome_binary_path = get_chrome_binary_path()
-    for i in range(0, number_of_environments):
-        try:
-            kill_chrome_processes()
-        except:
-            pass
-        directory_path, directory_name = set_directory_path_and_name()
-        print(directory_name, directory_path)
-        create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
-        time.sleep(2)
-    try:
-        kill_chrome_processes()
-    except:
-        pass
+    number_of_clones = get_user_input()
+    create_first_profile()
+    clone_profile(number_of_clones - 1)
+
 
 if __name__ == "__main__":
     __main__()
