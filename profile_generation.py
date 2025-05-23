@@ -1,11 +1,14 @@
 """
     This file is a rough draft of the profileCloning (name subject to change) CLI tool
 
-    The objective is making a tool that generates browser profile skeletons
-    removing the name_id field and changing its template name, cloning it X times
+    The objective is making a tool that generates chrome enviroments which, as a subdirectory,
+    each have one profile. We cannot have different profiles in the same chrome enviroment as they
+    will get linked by Local State's 'client_id'.
 
-    After that, the tool should take the newly generated profiles and warm them up to make
-    them usable for scraping (optional for the user)
+    We need to clear the client_id field in Local State and set a profile in the enviroment
+
+    After that, the tool should access each chrome enviroment, take the newly generated profile
+    and warm it up to make it usable for scraping (optional for the user)
 
     We will start simple, using Chrome and Windows 11
 """
@@ -182,23 +185,12 @@ def get_last_folder_name(ls: list):
 
 def __main__():
     """
-        Called when user executes the tool
+        Kill chrome processes, create profile skeleton
+        and modify the json values of local_state,
+        then copy X times.
     """
-    for i in range(0,5):
-        directory_path, directory_name = set_directory_path_and_name()
-        print("DIRECTORY PATH: ", directory_path)
-        print("DIRECTORY NAME: ", directory_name)
-        chrome_binary_path = get_chrome_binary_path()
-        print("Chrome binary path: ", chrome_binary_path)
-        try:
-            kill_chrome_processes()
-        except:
-            pass
-        create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
-        time.sleep(2)
-        try:
-            kill_chrome_processes()
-        except:
-            pass
+    directory_path, directory_name = set_directory_path_and_name()
+    chrome_binary_path = get_chrome_binary_path()
+    create_profile_skeleton(directory_path, directory_name, chrome_binary_path)
 
 __main__()
