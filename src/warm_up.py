@@ -21,10 +21,12 @@
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from get_creepjs_output import get_creepjs_metrics
 import time
 import string
 import random
 from pathlib import Path
+import pandas as pd
 
 TOP_WEBSITES = [
     'google.com', 'youtube.com', 'facebook.com', 'instagram.com', 'chatgpt.com',
@@ -51,6 +53,30 @@ COOKIE_ACCEPT_TERMS = [
     # Italian
     'Accettare', 'Accetto'
 ]
+
+METRICS_DATAFRAME = Path("creepjs_metrics.csv")
+
+def setup_csv():
+    """
+        Create csv if not already created to store CreepJS
+        metrics.
+    """
+    if not METRICS_DATAFRAME.exists():
+        try:
+            columns = [
+                "warmup_duration",
+                "websites_visited",
+                "profile_number",
+                "trust score_before",
+                "trust score_after",
+                "shadow_before",
+                "shadow_after",
+                "bot_before",
+                "bot_after"
+            ]
+            pd.DataFrame(columns=columns).to_csv("creepjs_metrics.csv", index=False)
+        except Exception as e:
+            print("Could not setup csv: ", e)
 
 def how_many_profiles():
     """
@@ -162,38 +188,52 @@ def warm_up(driver, duration: int, starting_timestamp):
             for website in random_websites:
                 accept_cookies(driver)
                 act_like_a_human(driver, website)
+            return random_websites
     except Exception as e:
         print("Important: ", e)
 
-def get_data(i: int):
+def add_to_df(row: pd.Series):
     """
-        Get length of relevant files
+        Add a new line to the metrics dataframe
     """
-    pass
+    try:
+        df = pd.read_csv(METRICS_DATAFRAME)
+        pd.concat(df, row)
+    except Exception as e:
+        print("Could not add row to dataframe: ", e)
 
-def check_difference(data_before, data_after):
+def record_difference(data_before, data_after, duration_of_warm_up, websites_visited, profile_number):
     """
-        Check difference before
+        Store the difference in metrics along with
+        the duration of the warm up and sites visited
+        in a csv
     """
-    pass
+    KEYWORDS = ['trust score', 'shadow', 'bot']
+    dataframe = pd.Series({
+        "warmup_duration": duration_of_warm_up,
+        "websites_visited": websites_visited,
+        "profile_number": profile_number
+    })
+    for key in KEYWORDS:
+        dataframe[f"{key}_before"] = data_before[key]
+        dataframe[f"{key}_after"] = data_after[key]
+    add_to_df(dataframe)
 
 def __main__():
     """
-        Get the user's input on how many profiles
-        and how much time in minutes to warm-up
+        Warm up the profiles specified by the user, for
+        the time specified by the user, and compare CreepJs
+        metrics before and after
     """
     number_of_profiles = how_many_profiles()
     duration_of_warm_up, current_timestamp = how_much_time(), time.time()
     for i in range(1, number_of_profiles+1):
-        data_before = get_data(i)
+        metrics_before = get_creepjs_metrics()
         driver = set_up_driver(i)
-        warm_up(driver, duration_of_warm_up, current_timestamp)
-        data_after = get_data(i)
-        check_difference(data_before, data_after)
+        websites_visited = warm_up(driver, duration_of_warm_up, current_timestamp)
+        metrics_after = get_creepjs_metrics()
+        record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i)
         driver.quit()
 
-# if __name__ == '__main__':
-#     __main__()
-
-driver = set_up_driver(2)
-driver.get('https://reddit.com')
+if __name__ == '__main__':
+    __main__()
