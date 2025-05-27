@@ -56,27 +56,27 @@ COOKIE_ACCEPT_TERMS = [
 
 METRICS_DATAFRAME = Path("creepjs_metrics.csv")
 
-def setup_csv():
-    """
-        Create csv if not already created to store CreepJS
-        metrics.
-    """
-    if not METRICS_DATAFRAME.exists():
-        try:
-            columns = [
-                "warmup_duration",
-                "websites_visited",
-                "profile_number",
-                "trust score_before",
-                "trust score_after",
-                "shadow_before",
-                "shadow_after",
-                "bot_before",
-                "bot_after"
-            ]
-            pd.DataFrame(columns=columns).to_csv("creepjs_metrics.csv", index=False)
-        except Exception as e:
-            print("Could not setup csv: ", e)
+# def set_up_csv():
+#     """
+#         Create csv if not already created to store CreepJS
+#         metrics.
+#     """
+#     if not METRICS_DATAFRAME.exists():
+#         try:
+#             columns = [
+#                 "warmup_duration",
+#                 "websites_visited",
+#                 "profile_number",
+#                 "trust score_before",
+#                 "trust score_after",
+#                 "shadow_before",
+#                 "shadow_after",
+#                 "bot_before",
+#                 "bot_after"
+#             ]
+#             pd.DataFrame(columns=columns).to_csv("creepjs_metrics.csv", index=False)
+#         except Exception as e:
+#             print("Could not setup csv: ", e)
 
 def how_many_profiles():
     """
@@ -108,6 +108,7 @@ def set_up_driver(i: int):
     chrome_options = uc.ChromeOptions()
     chrome_options.add_argument(f'--user-data-dir={user_data_dir_path}')
     chrome_options.add_argument('--profile-directory=myprofile')
+    chrome_options.add_argument('--headless=new')
     print("Just loaded: ", user_data_dir_path, "+ myprofile")
     return uc.Chrome(options=chrome_options)
 
@@ -124,7 +125,6 @@ def accept_cookies(driver):
             break
         except Exception as e:
             continue
-
 
 def get_random_websites():
     """
@@ -155,7 +155,10 @@ def interact_with_element(element):
         try to write something, if that fails
         try something else
     """
-    pass
+    try:
+        element.click()
+    except Exception as e:
+        print("Could not interact with element")
 
 def act_like_a_human(driver, website):
     """
@@ -167,6 +170,8 @@ def act_like_a_human(driver, website):
     try:
         # Without https:// it was not working
         driver.get(f"https://{website}")
+        print("Just went to ", website)
+        accept_cookies(driver)
     except Exception as e:
         print("Importante: ", e)
     random_scroll_value = random.choice(range(0, 1080))
@@ -182,25 +187,26 @@ def warm_up(driver, duration: int, starting_timestamp):
         Warm up the environment and profile
     """
     try:
-        # Could store in a variable but I like being a G
-        while abs(time.time() - (starting_timestamp + float(duration*60))) > 0.1:
+        visited_websites = []
+        deadline = starting_timestamp + float(duration*60)
+        while time.time() < deadline:
             random_websites = get_random_websites()
             for website in random_websites:
-                accept_cookies(driver)
+                if time.time() >= deadline:
+                    break
                 act_like_a_human(driver, website)
-            return random_websites
+            visited_websites.extend(random_websites)
+        return visited_websites
     except Exception as e:
         print("Important: ", e)
 
-def add_to_df(row: pd.Series):
+def add_to_df(row_df: pd.DataFrame, path: Path = METRICS_DATAFRAME):
     """
-        Add a new line to the metrics dataframe
+        Add a new line to the metrics dataframe, I was opening
+        and rewriting the csv constantly, really inefficient
     """
-    try:
-        df = pd.read_csv(METRICS_DATAFRAME)
-        pd.concat(df, row)
-    except Exception as e:
-        print("Could not add row to dataframe: ", e)
+    header_needed = not path.exists()
+    row_df.to_csv(path, mode='a', header=header_needed, index=False)
 
 def record_difference(data_before, data_after, duration_of_warm_up, websites_visited, profile_number):
     """
@@ -208,8 +214,8 @@ def record_difference(data_before, data_after, duration_of_warm_up, websites_vis
         the duration of the warm up and sites visited
         in a csv
     """
-    KEYWORDS = ['trust score', 'shadow', 'bot']
-    dataframe = pd.Series({
+    KEYWORDS = ['trust_score', 'shadow', 'bot']
+    dataframe = pd.DataFrame({
         "warmup_duration": duration_of_warm_up,
         "websites_visited": websites_visited,
         "profile_number": profile_number
@@ -228,10 +234,10 @@ def __main__():
     number_of_profiles = how_many_profiles()
     duration_of_warm_up, current_timestamp = how_much_time(), time.time()
     for i in range(1, number_of_profiles+1):
-        metrics_before = get_creepjs_metrics()
         driver = set_up_driver(i)
+        metrics_before = get_creepjs_metrics(driver)
         websites_visited = warm_up(driver, duration_of_warm_up, current_timestamp)
-        metrics_after = get_creepjs_metrics()
+        metrics_after = get_creepjs_metrics(driver)
         record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i)
         driver.quit()
 
