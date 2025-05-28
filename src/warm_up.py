@@ -21,6 +21,7 @@
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from captcha_finder import CaptchaFinder
 from get_creepjs_output import get_creepjs_metrics
 import time
 import string
@@ -41,7 +42,7 @@ TOP_WEBSITES = [
 
 COOKIE_ACCEPT_TERMS = [
     # English
-    'Accept', 'Accept all', 'Allow all', 'I agree', 'OK', 'Got it',
+    'Accept', 'Accept all', 'Allow all', 'I agree', 'OK', 'Got it', 'Consent',
     # Spanish  
     'Aceptar todas', 'Aceptar', 'Acepto', 'Permitir',
     # French
@@ -56,27 +57,27 @@ COOKIE_ACCEPT_TERMS = [
 
 METRICS_DATAFRAME = Path("creepjs_metrics.csv")
 
-# def set_up_csv():
-#     """
-#         Create csv if not already created to store CreepJS
-#         metrics.
-#     """
-#     if not METRICS_DATAFRAME.exists():
-#         try:
-#             columns = [
-#                 "warmup_duration",
-#                 "websites_visited",
-#                 "profile_number",
-#                 "trust score_before",
-#                 "trust score_after",
-#                 "shadow_before",
-#                 "shadow_after",
-#                 "bot_before",
-#                 "bot_after"
-#             ]
-#             pd.DataFrame(columns=columns).to_csv("creepjs_metrics.csv", index=False)
-#         except Exception as e:
-#             print("Could not setup csv: ", e)
+def set_up_csv():
+    """
+        Create csv if not already created to store CreepJS
+        metrics.
+    """
+    if not METRICS_DATAFRAME.exists():
+        try:
+            columns = [
+                "warmup_duration",
+                "websites_visited",
+                "profile_number",
+                "trust score_before",
+                "trust score_after",
+                "shadow_before",
+                "shadow_after",
+                "bot_before",
+                "bot_after"
+            ]
+            pd.DataFrame(columns=columns).to_csv("creepjs_metrics.csv", index=False)
+        except Exception as e:
+            print("Could not setup csv: ", e)
 
 def how_many_profiles():
     """
@@ -94,7 +95,8 @@ def how_much_time():
         to warm-up.
     """
     try:
-        return int(input("Specify the time in minutes that each profile should warm-up\n"))
+        #TODO
+        return float(input("Specify the time in minutes that each profile should warm-up\n"))
     except Exception as e:
         raise SystemExit("Not an integer, try again\n")
 
@@ -108,7 +110,9 @@ def set_up_driver(i: int):
     chrome_options = uc.ChromeOptions()
     chrome_options.add_argument(f'--user-data-dir={user_data_dir_path}')
     chrome_options.add_argument('--profile-directory=myprofile')
-    chrome_options.add_argument('--headless=new')
+    # To avoid restore shit banner
+    chrome_options.add_argument("--disable-session-crashed-bubble")
+    # chrome_options.add_argument('--headless=new')
     print("Just loaded: ", user_data_dir_path, "+ myprofile")
     return uc.Chrome(options=chrome_options, version_main=136)
 
@@ -123,6 +127,11 @@ def accept_cookies(driver):
             # Case-insensitive version
             driver.find_element(By.XPATH, f'//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility.lower()}")]').click()
             break
+        except NoSuchElementException:
+            # scroll until end of page
+            # try again, since the cookie banner might be at the top, i do not
+            # know if it will be clickable
+            driver.find_element(By.XPATH, f'//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility.lower()}")]').click()
         except Exception as e:
             continue
 
@@ -133,11 +142,17 @@ def get_random_websites():
     """
     return random.choices(TOP_WEBSITES, k=7)
 
-def get_random_letter():
+# def get_random_letter():
+#     """
+#         Return a random letter
+#     """
+#     return random.choice(string.ascii_letters)
+
+def get_random_input():
     """
-        Return a random letter
+        Return a random string
     """
-    return random.choice(string.ascii_letters)
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=random.uniform(9, 16)))
 
 def find_element(driver, random_letter):
     """
@@ -155,34 +170,73 @@ def interact_with_element(element):
         try to write something, if that fails
         try something else
     """
-    try:
-        element.click()
-    except Exception as e:
-        print("Could not interact with element")
+    if element.tag_name == "a" or element.tag_name == "button":
+        try:
+            element.click()
+        except Exception as e:
+            print("Exception at interact_with_element: ", e)
+    elif element.tag_name == "input":
+        try:
+            element.send_keys(get_random_input())
+        except Exception as e:
+            print("Exception at interact_with_element: ", e)
+    else:
+        pass
 
-def act_like_a_human(driver, website):
+def scroll_randomly(driver):
+    """
+        Scroll a random value
+    """
+    random_scroll_value = random.choice(range(0, 1080))
+    driver.execute_script(f"window.scrollTo(0, {random_scroll_value})")
+
+def get_random_element(driver):
+    """
+        Return a random button or...
+    """
+    possible_elements = ['button', 'input', 'a']
+    for element in possible_elements:
+        try:
+            return driver.find_element(By.TAG_NAME, element)
+        except NoSuchElementException:
+            continue
+        except Exception as e:
+            print("Exception in get_random_element: ", e)
+
+
+def interact_with_random_element(driver):
+    """
+       Search for a random element, every 5 seconds
+       check for a captcha by creating a CaptchaFinder
+       object
+    """
+    # CaptchaFinder()
+    element = get_random_element(driver)
+    interact_with_element(element)
+    time.sleep(random.uniform(0.8, 2.3))
+
+def act_like_a_human(driver, website, deadline):
     """
         Scroll, click a few buttons, read the text,
         think a bit, try to emulate real user behaviour
         just enough to get proper cookies and gain
         reputation.
     """
+    possible_functions = [scroll_randomly, interact_with_random_element]
     try:
         # Without https:// it was not working
         driver.get(f"https://{website}")
         print("Just went to ", website)
+        time.sleep(random.uniform(0.7, 1.3))
         accept_cookies(driver)
     except Exception as e:
         print("Importante: ", e)
-    random_scroll_value = random.choice(range(0, 1080))
-    driver.execute_script(f"window.scrollTo(0, {random_scroll_value})")
-    for i in range(0, random.choice(range(1, 15))):
-        random_letter = get_random_letter()
-        element = find_element(driver, random_letter)
-        interact_with_element(element)
-        time.sleep(1.5)
+    for i in range(0, random.choice(range(12, 18))):
+        if time.time() > deadline:
+            break
+        random.choice(possible_functions)(driver)
 
-def warm_up(driver, duration: int, starting_timestamp):
+def warm_up(driver, duration, starting_timestamp):
     """
         Warm up the environment and profile
     """
@@ -194,11 +248,11 @@ def warm_up(driver, duration: int, starting_timestamp):
             for website in random_websites:
                 if time.time() >= deadline:
                     break
-                act_like_a_human(driver, website)
+                act_like_a_human(driver, website, deadline)
             visited_websites.extend(random_websites)
         return visited_websites
     except Exception as e:
-        print("Important: ", e)
+        print("Exception at warm_up function:", e)
 
 def add_to_df(row_df: pd.DataFrame, path: Path = METRICS_DATAFRAME):
     """
@@ -206,7 +260,10 @@ def add_to_df(row_df: pd.DataFrame, path: Path = METRICS_DATAFRAME):
         and rewriting the csv constantly, really inefficient
     """
     header_needed = not path.exists()
-    row_df.to_csv(path, mode='a', header=header_needed, index=False)
+    try:
+        row_df.to_csv(path, mode='a', header=header_needed, index=False)
+    except:
+        raise SystemExit("Come on bruh")
 
 def record_difference(data_before, data_after, duration_of_warm_up, websites_visited, profile_number):
     """
@@ -215,15 +272,18 @@ def record_difference(data_before, data_after, duration_of_warm_up, websites_vis
         in a csv
     """
     KEYWORDS = ['trust_score', 'shadow', 'bot']
-    dataframe = pd.DataFrame({
-        "warmup_duration": duration_of_warm_up,
-        "websites_visited": websites_visited,
-        "profile_number": profile_number
-    })
-    for key in KEYWORDS:
-        dataframe[f"{key}_before"] = data_before[key]
-        dataframe[f"{key}_after"] = data_after[key]
-    add_to_df(dataframe)
+    try:
+        dataframe = pd.DataFrame({
+            "warmup_duration": [duration_of_warm_up],
+            "websites_visited": [websites_visited],
+            "profile_number": [profile_number]
+        })
+        for key in KEYWORDS:
+            dataframe[f"{key}_before"] = data_before[key]
+            dataframe[f"{key}_after"] = data_after[key]
+        add_to_df(dataframe)
+    except Exception as e:
+        raise SystemExit("Error in record_difference function:", e)
 
 def __main__():
     """
@@ -231,6 +291,7 @@ def __main__():
         the time specified by the user, and compare CreepJs
         metrics before and after
     """
+    set_up_csv()
     number_of_profiles = how_many_profiles()
     duration_of_warm_up, current_timestamp = how_much_time(), time.time()
     for i in range(1, number_of_profiles+1):

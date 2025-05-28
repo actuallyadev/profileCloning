@@ -46,17 +46,31 @@ def get_creepjs_metrics(driver):
 
         Goal: Keep shadow as low as possible (0 ideally).
     """
+    metrics = {}
+    driver.get('https://abrahamjuliot.github.io/creepjs/')
     try:
-        ds = WebDriverWait(driver, timeout=15).until(
-            EC.visibility_of_all_elements_located((By.XPATH, "//div[contains(@class, 'col-six')]"))
+        first_col = WebDriverWait(driver, timeout=15).until(
+            EC.visibility_of_all_elements_located((By.XPATH, '//span[contains(@class, "unblurred")]'))
         )
-        strings = [ds[0].text, ds[1].text]
-        metrics = []
-        for string in strings:
-            splitted_string = string.split("\n")
-            for line in splitted_string:
-                if any(keyword in line.lower() for keyword in KEYWORDS):
-                    metrics.append(line)  # Append as a single-element list for consistency
-        return dict(zip(KEYWORDS,metrics))
+        metrics["trust_score"] = first_col[2].text
+        metrics["shadow"] = first_col[6].text
+        metrics["bot"] = driver.find_element(By.XPATH, '//div[contains(@class, "unblurred")]').text.split(":")[1]
+        return metrics
     except Exception as e:
         print("Could not get CreepJS metrics: ", e)
+
+def find_lies(driver):
+    """
+        Get lies metric
+    """
+    try:
+        lies = driver.find_element(By.XPATH, '//div[@class = " lies"]').text
+        return process_lies(lies)
+    except Exception as e:
+        print("Exception while getting lies: ", e)
+
+def process_lies(lies):
+    """
+        Process and clean lies text
+    """
+    pass            
