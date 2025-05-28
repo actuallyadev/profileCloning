@@ -110,7 +110,7 @@ def set_up_driver(i: int):
     chrome_options.add_argument('--profile-directory=myprofile')
     chrome_options.add_argument('--headless=new')
     print("Just loaded: ", user_data_dir_path, "+ myprofile")
-    return uc.Chrome(options=chrome_options)
+    return uc.Chrome(options=chrome_options, version_main=136)
 
 def accept_cookies(driver):
     """
