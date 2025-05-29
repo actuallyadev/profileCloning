@@ -7,6 +7,18 @@
 # from selenium.webdriver.common.by import By
 # from selenium.common.exceptions import NoSuchElementException
 # from warm_up import set_up_driver
+import threading
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from warm_up import set_up_driver
+import time
+import string
+import random
+from pathlib import Path
+import pandas as pd
 
 CAPTCHA_SELECTORS = [
     # Common CAPTCHA selectors
@@ -33,12 +45,16 @@ class CaptchaFinder:
         self.driver = driver
         self.counter = 0
         self.seen_captchas = set()
+        self.check_for_captcha()
 
     def check_for_captcha(self):
         """
             Test different captcha selectors, if
             one is found add one to the counter
         """
+        # Run every 5 seconds
+        threading.Timer(5.0, self.check_for_captcha).start()
+        print("yessirr")
         for selector in CAPTCHA_SELECTORS:
             page_key = f"{self.driver.current_url}_{selector}"
             if page_key not in self.seen_captchas:
@@ -52,9 +68,9 @@ class CaptchaFinder:
                 except Exception as e:
                     print("Exception when checking for captcha: ", e)
 
-    def get_captchas(self, website):
-        self.driver.get(website)
-        self.check_for_captcha()
+    # def get_captchas(self, website):
+    #     self.driver.get(website)
+    #     self.check_for_captcha()
 
-# driver = set_up_driver(1)
-# finder = CaptchaFinder(driver)
+driver = set_up_driver(1)
+CaptchaFinder(driver)
