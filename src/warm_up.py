@@ -21,6 +21,8 @@
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from captcha_finder import CaptchaFinder
 from get_creepjs_output import get_creepjs_metrics
 import time
@@ -42,17 +44,17 @@ TOP_WEBSITES = [
 
 COOKIE_ACCEPT_TERMS = [
     # English
-    'Accept', 'Accept all', 'Allow all', 'I agree', 'OK', 'Got it', 'Consent',
+    'accept', 'allow', 'agree', 'ok', 'got', 'consent',
     # Spanish  
-    'Aceptar todas', 'Aceptar', 'Acepto', 'Permitir',
+    'acept', 'permit',
     # French
-    'Accepter', "J'accepte", 'Autoriser',
+    'accepte', 'autoris',
     # German
-    'Akzeptieren', 'Alle akzeptieren', 'Einverstanden',
+    'akzeptieren', 'einvers',
     # Portuguese
-    'Aceitar', 'Aceito',
+    'aceit',
     # Italian
-    'Accettare', 'Accetto'
+    'accett', 'accett'
 ]
 
 METRICS_DATAFRAME = Path("creepjs_metrics.csv")
@@ -96,7 +98,7 @@ def how_much_time():
     """
     try:
         #TODO
-        return float(input("Specify the time in minutes that each profile should warm-up\n"))
+        return int(input("Specify the time in minutes that each profile should warm-up\n"))
     except Exception as e:
         raise SystemExit("Not an integer, try again\n")
 
@@ -122,18 +124,28 @@ def accept_cookies(driver):
         the term 'cookie' or 'accept' and
         accept them.
     """
+    # Before anything
+    try:
+        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
+    except Exception as e:
+        print("Body is not found in 3 seconds:", e)
+    attributes = ['text()', '@aria-label', '@alt']
     for possibility in COOKIE_ACCEPT_TERMS:
-        try:
-            # Case-insensitive version
-            driver.find_element(By.XPATH, f'//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility.lower()}")]').click()
-            break
-        except NoSuchElementException:
-            # scroll until end of page
-            # try again, since the cookie banner might be at the top, i do not
-            # know if it will be clickable
-            driver.find_element(By.XPATH, f'//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility.lower()}")]').click()
-        except Exception as e:
-            continue
+        for attribute in attributes:
+            try:
+                # Scroll into view first
+                driver.execute_script("window.scrollTo(0, 100)")
+                # Case-insensitive version
+                driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
+                print("FUCK YEAH GOT THEM SWEET COOKIES")
+                return
+            except NoSuchElementException:
+                # scroll until end of page
+                # driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+                # driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
+                continue
+            except Exception:
+                continue
 
 def get_random_websites():
     """
@@ -141,12 +153,6 @@ def get_random_websites():
         we can easily get k random websites in one line
     """
     return random.choices(TOP_WEBSITES, k=7)
-
-# def get_random_letter():
-#     """
-#         Return a random letter
-#     """
-#     return random.choice(string.ascii_letters)
 
 def get_random_input():
     """
@@ -210,7 +216,6 @@ def interact_with_random_element(driver):
        check for a captcha by creating a CaptchaFinder
        object
     """
-    # CaptchaFinder()
     element = get_random_element(driver)
     interact_with_element(element)
     time.sleep(random.uniform(0.8, 2.3))
