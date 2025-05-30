@@ -25,6 +25,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from captcha_finder import CaptchaFinder
 from get_creepjs_output import get_creepjs_metrics
+from utils import set_up_driver
 import time
 import string
 import random
@@ -67,6 +68,7 @@ def set_up_csv():
     if not METRICS_DATAFRAME.exists():
         try:
             columns = [
+                "captchas_triggered",
                 "warmup_duration",
                 "websites_visited",
                 "profile_number",
@@ -102,22 +104,6 @@ def how_much_time():
     except Exception as e:
         raise SystemExit("Not an integer, try again\n")
 
-def set_up_driver(i: int):
-    """
-        Setup the selenium driver, load the relevant
-        profile by adding user_data_dir location and
-        profile name to the chrome options
-    """
-    user_data_dir_path = Path.cwd() / "EnvironmentDirectory" / f"environment_{i}"
-    chrome_options = uc.ChromeOptions()
-    chrome_options.add_argument(f'--user-data-dir={user_data_dir_path}')
-    chrome_options.add_argument('--profile-directory=myprofile')
-    # To avoid restore shit banner
-    chrome_options.add_argument("--disable-session-crashed-bubble")
-    # chrome_options.add_argument('--headless=new')
-    print("Just loaded: ", user_data_dir_path, "+ myprofile")
-    return uc.Chrome(options=chrome_options, version_main=136)
-
 def accept_cookies(driver):
     """
         Search for elements containing
@@ -140,12 +126,14 @@ def accept_cookies(driver):
                 print("FUCK YEAH GOT THEM SWEET COOKIES")
                 return
             except NoSuchElementException:
-                # scroll until end of page
-                # driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
-                # driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
-                continue
-            except Exception:
-                continue
+                try:
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+                    # Case-insensitive version
+                    driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
+                except NoSuchElementException:
+                    continue
+            except Exception as e:
+                print("Exception in accept_cookies:", e)
 
 def get_random_websites():
     """
@@ -158,7 +146,7 @@ def get_random_input():
     """
         Return a random string
     """
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=random.uniform(9, 16)))
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=random.randint(9, 16)))
 
 def find_element(driver, random_letter):
     """
@@ -193,8 +181,10 @@ def scroll_randomly(driver):
     """
         Scroll a random value
     """
-    random_scroll_value = random.choice(range(0, 1080))
-    driver.execute_script(f"window.scrollTo(0, {random_scroll_value})")
+    random_scroll_value = random.randint(100, 700)
+    for _ in range(random.randint(1, 4)):
+        driver.execute_script(f"window.scrollTo(0, {random_scroll_value // 3})")
+        time.sleep(random.uniform(0.2, 0.6))
 
 def get_random_element(driver):
     """
@@ -217,17 +207,17 @@ def interact_with_random_element(driver):
        object
     """
     element = get_random_element(driver)
-    interact_with_element(element)
-    time.sleep(random.uniform(0.8, 2.3))
+    if element:
+        interact_with_element(element)
 
-def act_like_a_human(driver, website, deadline):
+def act_like_a_human(driver, website, deadline, finder):
     """
         Scroll, click a few buttons, read the text,
         think a bit, try to emulate real user behaviour
         just enough to get proper cookies and gain
         reputation.
     """
-    possible_functions = [scroll_randomly, interact_with_random_element]
+    possible_functions = [scroll_randomly] * 4 + [interact_with_random_element]
     try:
         # Without https:// it was not working
         driver.get(f"https://{website}")
@@ -236,12 +226,19 @@ def act_like_a_human(driver, website, deadline):
         accept_cookies(driver)
     except Exception as e:
         print("Importante: ", e)
-    for i in range(0, random.choice(range(12, 18))):
+    for i in range(0, random.choice(range(25, 45))):
         if time.time() > deadline:
             break
         random.choice(possible_functions)(driver)
+        if i % 20 == 0:
+            finder.check_for_captcha()
+        if i % 15 == 0:
+            # User is thinking
+            time.sleep(random.uniform(3.5, 6.5))
+        # Between actions we need to wait a bit
+        time.sleep(random.uniform(0.8, 2.3))
 
-def warm_up(driver, duration, starting_timestamp):
+def warm_up(driver, duration, starting_timestamp, finder):
     """
         Warm up the environment and profile
     """
@@ -253,7 +250,7 @@ def warm_up(driver, duration, starting_timestamp):
             for website in random_websites:
                 if time.time() >= deadline:
                     break
-                act_like_a_human(driver, website, deadline)
+                act_like_a_human(driver, website, deadline, finder)
             visited_websites.extend(random_websites)
         return visited_websites
     except Exception as e:
@@ -270,7 +267,7 @@ def add_to_df(row_df: pd.DataFrame, path: Path = METRICS_DATAFRAME):
     except:
         raise SystemExit("Come on bruh")
 
-def record_difference(data_before, data_after, duration_of_warm_up, websites_visited, profile_number):
+def record_difference(data_before, data_after, duration_of_warm_up, websites_visited, profile_number, finder):
     """
         Store the difference in metrics along with
         the duration of the warm up and sites visited
@@ -279,9 +276,10 @@ def record_difference(data_before, data_after, duration_of_warm_up, websites_vis
     KEYWORDS = ['trust_score', 'shadow', 'bot']
     try:
         dataframe = pd.DataFrame({
+            "captchas_triggered": [finder.counter],
             "warmup_duration": [duration_of_warm_up],
             "websites_visited": [websites_visited],
-            "profile_number": [profile_number]
+            "profile_number": [profile_number],
         })
         for key in KEYWORDS:
             dataframe[f"{key}_before"] = data_before[key]
@@ -301,10 +299,11 @@ def __main__():
     duration_of_warm_up, current_timestamp = how_much_time(), time.time()
     for i in range(1, number_of_profiles+1):
         driver = set_up_driver(i)
+        finder = CaptchaFinder(driver)
         metrics_before = get_creepjs_metrics(driver)
-        websites_visited = warm_up(driver, duration_of_warm_up, current_timestamp)
+        websites_visited = warm_up(driver, duration_of_warm_up, current_timestamp, finder)
         metrics_after = get_creepjs_metrics(driver)
-        record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i)
+        record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i, finder)
         driver.quit()
 
 if __name__ == '__main__':
