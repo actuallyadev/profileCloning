@@ -58,30 +58,7 @@ COOKIE_ACCEPT_TERMS = [
     'accett', 'accett'
 ]
 
-METRICS_DATAFRAME = Path("creepjs_metrics.csv")
-
-def set_up_csv():
-    """
-        Create csv if not already created to store CreepJS
-        metrics.
-    """
-    if not METRICS_DATAFRAME.exists():
-        try:
-            columns = [
-                "captchas_triggered",
-                "warmup_duration",
-                "websites_visited",
-                "profile_number",
-                "trust score_before",
-                "trust score_after",
-                "shadow_before",
-                "shadow_after",
-                "bot_before",
-                "bot_after"
-            ]
-            pd.DataFrame(columns=columns).to_csv("creepjs_metrics.csv", index=False)
-        except Exception as e:
-            print("Could not setup csv: ", e)
+METRICS_DATAFRAME = Path("warm_metrics.csv")
 
 def how_many_profiles():
     """
@@ -294,7 +271,6 @@ def __main__():
         the time specified by the user, and compare CreepJs
         metrics before and after
     """
-    set_up_csv()
     number_of_profiles = how_many_profiles()
     duration_of_warm_up, current_timestamp = how_much_time(), time.time()
     for i in range(1, number_of_profiles+1):
