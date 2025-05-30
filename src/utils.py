@@ -16,3 +16,9 @@ def set_up_driver(i: int):
     # chrome_options.add_argument('--headless=new')
     print("Just loaded: ", user_data_dir_path, "+ myprofile")
     return uc.Chrome(options=chrome_options, version_main=136)
+
+class ExceptionCounter:
+    def __init__(self):
+        self.intercepted = 0
+        self.not_interactable = 0
+        self.elements_clicked = 0

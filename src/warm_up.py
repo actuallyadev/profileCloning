@@ -20,12 +20,12 @@
 
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException, ElementClickInterceptedException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from captcha_finder import CaptchaFinder
 from get_creepjs_output import get_creepjs_metrics
-from utils import set_up_driver
+from utils import set_up_driver, ExceptionCounter
 import time
 import string
 import random
@@ -47,7 +47,7 @@ COOKIE_ACCEPT_TERMS = [
     # English
     'accept', 'allow', 'agree', 'ok', 'got', 'consent',
     # Spanish  
-    'acept', 'permit',
+    'acept', 'permit', 'consen',
     # French
     'accepte', 'autoris',
     # German
@@ -81,6 +81,31 @@ def how_much_time():
     except Exception as e:
         raise SystemExit("Not an integer, try again\n")
 
+def how_many_actions():
+    """
+        Ask the user how many actions should
+        be executed per site, that value will
+        be used as the lower threshold, that
+        value + 25 will be the upper threshold.
+    """
+    try:
+        return int(input("Specify the lower threshold of actions executed per site\n"))
+    except Exception as e:
+        raise SystemExit("Not an integer, try again\n")
+
+def how_much_sleep():
+    """
+        Ask the user how much time
+        should be slept between actions,
+        this value will be used as the
+        lower threshold, that value + 0.5
+        will be the upper threshold.
+    """
+    try:
+        return float(input("Specify the lower threshold of sleep per action\n"))
+    except Exception as e:
+        raise SystemExit("Not an integer, try again\n")
+
 def accept_cookies(driver):
     """
         Search for elements containing
@@ -96,19 +121,19 @@ def accept_cookies(driver):
     for possibility in COOKIE_ACCEPT_TERMS:
         for attribute in attributes:
             try:
-                # Scroll into view first
-                driver.execute_script("window.scrollTo(0, 100)")
                 # Case-insensitive version
                 driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
                 print("FUCK YEAH GOT THEM SWEET COOKIES")
                 return
             except NoSuchElementException:
                 try:
-                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
-                    # Case-insensitive version
+                    # Scroll into view first
+                    driver.execute_script("window.scrollTo(0, 100)")
                     driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
                 except NoSuchElementException:
-                    continue
+                    # Scroll until the bottom
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+                    driver.find_element(By.XPATH, f'//*[contains(translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{possibility}")]').click()
             except Exception as e:
                 print("Exception in accept_cookies:", e)
 
@@ -134,7 +159,7 @@ def find_element(driver, random_letter):
     except Exception as e:
         print("Error: ", e)
 
-def interact_with_element(element):
+def interact_with_element(element, counter, driver):
     """
         Interact with the element:
         Click it, if it is not clickable
@@ -144,6 +169,16 @@ def interact_with_element(element):
     if element.tag_name == "a" or element.tag_name == "button":
         try:
             element.click()
+        except ElementNotInteractableException:
+            try:
+                driver.execute_script("arguments[0].click()", element)
+            except ElementClickInterceptedException:
+                counter.intercepted += 1        
+        except ElementClickInterceptedException:
+            try:
+                driver.execute_script("arguments[0].click()", element)
+            except ElementClickInterceptedException:
+                counter.intercepted += 1
         except Exception as e:
             print("Exception at interact_with_element: ", e)
     elif element.tag_name == "input":
@@ -158,26 +193,33 @@ def scroll_randomly(driver):
     """
         Scroll a random value
     """
-    random_scroll_value = random.randint(100, 700)
+    random_scroll_value = random.randint(100, 700) * random.choice((1, -1))
     for _ in range(random.randint(1, 4)):
-        driver.execute_script(f"window.scrollTo(0, {random_scroll_value // 3})")
+        driver.execute_script(f"window.scrollBy(0, {random_scroll_value // 3})")
         time.sleep(random.uniform(0.2, 0.6))
 
 def get_random_element(driver):
     """
         Return a random button or...
     """
-    possible_elements = ['button', 'input', 'a']
-    for element in possible_elements:
+    possible_tags = ['button', 'input', 'a']
+    random.shuffle(possible_tags)
+    for tag in possible_tags:
+        elements = driver.find_elements(By.TAG_NAME, tag)
+        visible_elements = [
+            e for e in elements 
+            if e.is_displayed()
+            and (
+                e.size['height'] > 5
+                or e.size['width'] > 5
+            )
+        ]
         try:
-            return driver.find_element(By.TAG_NAME, element)
-        except NoSuchElementException:
-            continue
+            return random.choice(visible_elements)
         except Exception as e:
-            print("Exception in get_random_element: ", e)
+            raise SystemExit("BRUH")
 
-
-def interact_with_random_element(driver):
+def interact_with_random_element(driver, counter):
     """
        Search for a random element, every 5 seconds
        check for a captcha by creating a CaptchaFinder
@@ -185,49 +227,65 @@ def interact_with_random_element(driver):
     """
     element = get_random_element(driver)
     if element:
-        interact_with_element(element)
+        interact_with_element(element, counter, driver)
 
-def act_like_a_human(driver, website, deadline, finder):
+def act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep, elements_over_scrolling=False):
     """
         Scroll, click a few buttons, read the text,
         think a bit, try to emulate real user behaviour
         just enough to get proper cookies and gain
         reputation.
     """
-    possible_functions = [scroll_randomly] * 4 + [interact_with_random_element]
+    counter = ExceptionCounter()
+    possible_functions = []
+    # if elements_over_scrolling:
+    #     possible_functions = [scroll_randomly] + [interact_with_random_element] * 4
+    # else:
+    #     possible_functions = [scroll_randomly] * 4 + [interact_with_random_element]
     try:
         # Without https:// it was not working
         driver.get(f"https://{website}")
         print("Just went to ", website)
         time.sleep(random.uniform(0.7, 1.3))
+        finder.check_for_captcha()
+        time.sleep(random.uniform(0.7, 1.3))
         accept_cookies(driver)
     except Exception as e:
         print("Importante: ", e)
-    for i in range(0, random.choice(range(25, 45))):
+    for i in range(0, random.randint(actions_per_site, actions_per_site + 25)):
         if time.time() > deadline:
             break
-        random.choice(possible_functions)(driver)
+        # function = random.choice(possible_functions)
+        # if function.__name__ == "scroll_randomly":
+        #     function(driver)
+        # else:
+        #     function(driver, counter)
+        interact_with_random_element(driver, counter)
         if i % 20 == 0:
             finder.check_for_captcha()
         if i % 15 == 0:
             # User is thinking
             time.sleep(random.uniform(3.5, 6.5))
         # Between actions we need to wait a bit
-        time.sleep(random.uniform(0.8, 2.3))
+        time.sleep(random.uniform(sleep, sleep + 0.5))
+    print(f"{website} STATS:")
+    print("INTERCEPTED ELEMENTS: ", counter.intercepted)
+    print("NOT INTERACTABLE ELEMENTS: ", counter.not_interactable)
 
-def warm_up(driver, duration, starting_timestamp, finder):
+def warm_up(driver, duration, finder, actions_per_site, sleep):
     """
         Warm up the environment and profile
     """
+    elements_over_scrolling = input("Elements over scrolling? (y/n): ").lower().strip() == 'y'
     try:
         visited_websites = []
-        deadline = starting_timestamp + float(duration*60)
+        deadline = time.time() + float(duration*60)
         while time.time() < deadline:
             random_websites = get_random_websites()
             for website in random_websites:
                 if time.time() >= deadline:
                     break
-                act_like_a_human(driver, website, deadline, finder)
+                act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep, elements_over_scrolling)
             visited_websites.extend(random_websites)
         return visited_websites
     except Exception as e:
@@ -272,14 +330,16 @@ def __main__():
         metrics before and after
     """
     number_of_profiles = how_many_profiles()
-    duration_of_warm_up, current_timestamp = how_much_time(), time.time()
+    duration_of_warm_up = how_much_time()
+    actions_per_site, sleep_per_action = how_many_actions(), how_much_sleep()
     for i in range(1, number_of_profiles+1):
         driver = set_up_driver(i)
         finder = CaptchaFinder(driver)
-        metrics_before = get_creepjs_metrics(driver)
-        websites_visited = warm_up(driver, duration_of_warm_up, current_timestamp, finder)
-        metrics_after = get_creepjs_metrics(driver)
-        record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i, finder)
+        exception_counter = ExceptionCounter()
+        # metrics_before = get_creepjs_metrics(driver)
+        websites_visited = warm_up(driver, duration_of_warm_up, finder, actions_per_site, sleep_per_action)
+        # metrics_after = get_creepjs_metrics(driver)
+        # record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i, finder)
         driver.quit()
 
 if __name__ == '__main__':
