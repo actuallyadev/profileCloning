@@ -23,6 +23,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException, ElementClickInterceptedException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 from captcha_finder import CaptchaFinder
 from get_creepjs_output import get_creepjs_metrics
 from utils import set_up_driver, ExceptionCounter
@@ -184,6 +185,7 @@ def interact_with_element(element, counter, driver):
     elif element.tag_name == "input":
         try:
             element.send_keys(get_random_input())
+            element.send_keys(Keys.ENTER)
         except Exception as e:
             print("Exception at interact_with_element: ", e)
     else:
@@ -217,7 +219,7 @@ def get_random_element(driver):
         try:
             return random.choice(visible_elements)
         except Exception as e:
-            raise SystemExit("BRUH")
+            print("Exception at get_random_element: ", e)
 
 def interact_with_random_element(driver, counter):
     """
