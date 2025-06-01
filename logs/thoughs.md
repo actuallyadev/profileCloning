@@ -23,7 +23,18 @@
     - For this we have to change the act_like_a_human function, and make it so
     that there is a sleep between each action, making scrolling 4 times more likely
     to happen than clicking something, executing 25-50 actions instead of the 75-100
-    I had planned and make scrolling more realistic> slower and smaller.
+    I had planned and make scrolling more realistic: slower and smaller.
 
     - Implemented these changes in the warm_up.py script, moved set_up_driver to utils.py
     to avoid circular imports. Fixed imports in captcha_finder.py
+
+## 2025-06-01
+### Thoughts:
+    - Looking at the first commit today, warm up a profile for 10 minutes with X
+    elements interacted, scrolling over posts? Then test with the same automation
+    settings the warmed up profile and a fresh one.
+    - After this we could try to emulate human behaviour better, adding more sleep,
+    adding mouse movements, something like that to see the difference in captchas
+    triggered
+    - Done with the script, testing captchas looks good aswell, have not tested it
+    need to go to the gym rn.
