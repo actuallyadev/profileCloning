@@ -240,10 +240,10 @@ def act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep,
     """
     counter = ExceptionCounter()
     possible_functions = []
-    # if elements_over_scrolling:
-    #     possible_functions = [scroll_randomly] + [interact_with_random_element] * 4
-    # else:
-    #     possible_functions = [scroll_randomly] * 4 + [interact_with_random_element]
+    if elements_over_scrolling:
+        possible_functions = [scroll_randomly] + [interact_with_random_element] * 4
+    else:
+        possible_functions = [scroll_randomly] * 4 + [interact_with_random_element]
     try:
         # Without https:// it was not working
         driver.get(f"https://{website}")
@@ -257,12 +257,11 @@ def act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep,
     for i in range(0, random.randint(actions_per_site, actions_per_site + 25)):
         if time.time() > deadline:
             break
-        # function = random.choice(possible_functions)
-        # if function.__name__ == "scroll_randomly":
-        #     function(driver)
-        # else:
-        #     function(driver, counter)
-        interact_with_random_element(driver, counter)
+        function = random.choice(possible_functions)
+        if function.__name__ == "scroll_randomly":
+            function(driver)
+        else:
+            function(driver, counter)
         if i % 20 == 0:
             finder.check_for_captcha()
         if i % 15 == 0:
@@ -279,19 +278,19 @@ def warm_up(driver, duration, finder, actions_per_site, sleep):
         Warm up the environment and profile
     """
     elements_over_scrolling = input("Elements over scrolling? (y/n): ").lower().strip() == 'y'
-    try:
-        visited_websites = []
-        deadline = time.time() + float(duration*60)
-        while time.time() < deadline:
-            random_websites = get_random_websites()
+    visited_websites = []
+    deadline = time.time() + float(duration*60)
+    while time.time() < deadline:
+        random_websites = get_random_websites()
+        try:
             for website in random_websites:
                 if time.time() >= deadline:
                     break
                 act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep, elements_over_scrolling)
-            visited_websites.extend(random_websites)
-        return visited_websites
-    except Exception as e:
-        print("Exception at warm_up function:", e)
+        except Exception as e:
+            print("Exception at warm_up function:", e)
+        visited_websites.extend(random_websites)
+    return visited_websites
 
 def add_to_df(row_df: pd.DataFrame, path: Path = METRICS_DATAFRAME):
     """
@@ -335,13 +334,14 @@ def __main__():
     duration_of_warm_up = how_much_time()
     actions_per_site, sleep_per_action = how_many_actions(), how_much_sleep()
     for i in range(1, number_of_profiles+1):
+        start = time.time()
         driver = set_up_driver(i)
         finder = CaptchaFinder(driver)
-        exception_counter = ExceptionCounter()
-        # metrics_before = get_creepjs_metrics(driver)
+        metrics_before = get_creepjs_metrics(driver)
         websites_visited = warm_up(driver, duration_of_warm_up, finder, actions_per_site, sleep_per_action)
-        # metrics_after = get_creepjs_metrics(driver)
-        # record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i, finder)
+        print(f"Elapsed: {time.time() - start:.1f} s  (target: {duration_of_warm_up*60}s)")
+        metrics_after = get_creepjs_metrics(driver)
+        record_difference(metrics_before, metrics_after, duration_of_warm_up, websites_visited, i, finder)
         driver.quit()
 
 if __name__ == '__main__':
