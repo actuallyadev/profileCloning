@@ -46,7 +46,11 @@ def get_creepjs_metrics(driver):
 
         Goal: Keep shadow as low as possible (0 ideally).
     """
-    metrics = {}
+    metrics = {
+        "trust_score": None,
+        "shadow": None,
+        "bot": None,
+    }
     driver.get('https://abrahamjuliot.github.io/creepjs/')
     try:
         first_col = WebDriverWait(driver, timeout=15).until(
@@ -58,6 +62,8 @@ def get_creepjs_metrics(driver):
         return metrics
     except Exception as e:
         print("Could not get CreepJS metrics: ", e)
+        return metrics
+        
 
 def find_lies(driver):
     """

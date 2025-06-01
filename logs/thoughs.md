@@ -38,3 +38,27 @@
     triggered
     - Done with the script, testing captchas looks good aswell, have not tested it
     need to go to the gym rn.
+    - Back from the gym, at the library, I tried running test_captcha.py, I realized
+    that some links need you to be logged into an account to actually show any relevant
+    content, I asked ChatGPT o3 to give me some relevant links, and I am setting
+    elements_over_scrolling to True, with a ratio of 3/2. For every 3 elements clicked,
+    2 actions are spent scrolling.
+    - Some ChatGPT o3 links where shit, so I had to modify them, I have to modify
+    the get_creep_js_output function to return an empty dictionary when there is
+    an exception
+    - Ran one test of 4 minutes, no difference. I will up the interactions instead
+    of 15, to 500.
+    - Also realized that clicking buttons with CTAs for logging in or registering
+    an account is not the behaviour we want since it will break normal requests
+    and just make the driver go off into terms and conditions.
+    - For this last point, I have to change logic in get_random_element to call
+    my new function: is_not_log_in_or_register_stem, which takes the element text
+    (or maybe a concatenation of title, aria-label, text and others attributes).
+    - Need to change sleep to == 0, lower threshold + 0
+    - Ran the test with these settings, triggered one captcha with the "warmed_up"
+    profile, and zero with the "fresh" profile.
+    - Maybe a fresh profile works just right, maybe I need to implement selenium concurrency,
+    or change frameworks or execute several drivers, idk at this point.
+    - The issue is that test_captchas even if it has 500 interactions per site,
+    it will only cover the first one, even when the sleep is set to 0
+    - Fuck this, imma go read a book, I will be back though

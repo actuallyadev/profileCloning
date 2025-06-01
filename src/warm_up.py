@@ -59,6 +59,40 @@ COOKIE_ACCEPT_TERMS = [
     'accett', 'accett'
 ]
 
+LOG_IN_AND_REGISTER_STEMS = [
+    # English
+    "log", "sign", "reg", "join",
+
+    # Spanish / Portuguese
+    "inic",   # iniciar sesión / iniciar
+    "acced",  # acceder
+    "regis",  # registrarse / registrar
+    "cuent",  # cuenta / conta
+
+    # French
+    "conn",   # connexion / se connecter
+    "inscr",  # s’inscrire
+
+    # German / Dutch
+    "anmeld", "einlog",  # anmelden / einloggen
+    "account", "registr", "konto",
+
+    # Italian
+    "acced", "registr", "crea",
+
+    # Russian
+    "войд", "лог", "зарег", "аккаун",
+
+    # Chinese
+    "登录", "注册", "帳戶", "账户",
+
+    # Japanese
+    "ログ", "サイン", "登録",
+
+    # Korean
+    "로그", "회원", "계정",
+]
+
 METRICS_DATAFRAME = Path("warm_metrics.csv")
 
 def how_many_profiles():
@@ -200,6 +234,13 @@ def scroll_randomly(driver):
         driver.execute_script(f"window.scrollBy(0, {random_scroll_value // 3})")
         time.sleep(random.uniform(0.2, 0.6))
 
+def is_not_log_in_or_register_stem(element_text):
+    """
+        Check that the button text is not a
+        log in or register stem
+    """
+    return element_text.lower() not in LOG_IN_AND_REGISTER_STEMS
+
 def get_random_element(driver):
     """
         Return a random button or...
@@ -214,7 +255,7 @@ def get_random_element(driver):
             and (
                 e.size['height'] > 5
                 or e.size['width'] > 5
-            )
+            ) and is_not_log_in_or_register_stem(e.text)
         ]
         try:
             return random.choice(visible_elements)
@@ -241,7 +282,7 @@ def act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep,
     counter = ExceptionCounter()
     possible_functions = []
     if elements_over_scrolling:
-        possible_functions = [scroll_randomly] + [interact_with_random_element] * 4
+        possible_functions = [scroll_randomly] * 2 + [interact_with_random_element] * 3
     else:
         possible_functions = [scroll_randomly] * 4 + [interact_with_random_element]
     try:
@@ -268,7 +309,8 @@ def act_like_a_human(driver, website, deadline, finder, actions_per_site, sleep,
             # User is thinking
             time.sleep(random.uniform(3.5, 6.5))
         # Between actions we need to wait a bit
-        time.sleep(random.uniform(sleep, sleep + 0.5))
+        # Comment it out since we want 0 sleep for the test
+        # time.sleep(random.uniform(sleep, sleep + 0.5))
     print(f"{website} STATS:")
     print("INTERCEPTED ELEMENTS: ", counter.intercepted)
     print("NOT INTERACTABLE ELEMENTS: ", counter.not_interactable)
